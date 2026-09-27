@@ -18,8 +18,11 @@ def check():
     try:
         s = get(LIST_URL)
         i = s.find(f"/event/{SLUG}/\"><span class=\"w-btn-label\">")
-        if i != -1:
+        if i == -1:
+            print(f"list {len(s)}B, Paris button NOT FOUND")
+        else:
             label = re.search(r'w-btn-label">([^<]+)<', s[i:i + 200]).group(1)
+            print(f"list {len(s)}B, Paris button '{label.strip()}'")
             if label.strip().lower() != "find out more":
                 hits.append(f"Find-my-race button now says '{label.strip()}'")
     except Exception as e:
@@ -27,6 +30,7 @@ def check():
     for url in EVENT_URLS:
         try:
             s = get(url)
+            print(f"event {len(s)}B {url}" + (" (too small, skipped)" if len(s) < 50_000 else ""))
             if len(s) < 50_000:
                 continue  # error/blocked page, don't trust it
             if "waitlist" not in s.lower():
