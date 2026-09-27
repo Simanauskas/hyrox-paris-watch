@@ -1,16 +1,10 @@
-"""Watch HYROX Paris Grand Palais 2027 and push a phone alert when tickets go live.
-
-Signals (any one = alert):
-  1. hyrox.com/find-my-race: Paris row button flips "Find out more" -> "Buy Tickets"
-  2. Event page (hyrox.com + hyroxfrance.com): "Join the waitlist" text disappears
-  3. Event page: a vivenu ticket-shop widget/link appears
-"""
-import json, os, re, sys, urllib.request
+"""Watch HYROX Paris Grand Palais 2027 and push a phone alert when tickets go live."""
+import datetime, json, os, re, sys, urllib.request
 
 SLUG = "hyrox-paris-grand-palais-s26-27"
 EVENT_URLS = [f"https://hyrox.com/event/{SLUG}/", f"https://hyroxfrance.com/event/{SLUG}/"]
 LIST_URL = "https://hyrox.com/find-my-race/"
-NTFY_TOPIC = os.environ["NTFY_TOPIC"]           # set as a GitHub secret
+NTFY_TOPIC = os.environ["NTFY_TOPIC"]
 STATE = "state.json"
 UA = {"User-Agent": "Mozilla/5.0 (personal ticket watcher, 1 req/10min)"}
 
@@ -43,21 +37,30 @@ def check():
             print("event err", url, e)
     return hits
 
-def notify(msg):
+def notify(title, msg):
     req = urllib.request.Request(
         f"https://ntfy.sh/{NTFY_TOPIC}", data=msg.encode(),
-        headers={"Title": "HYROX Paris Grand Palais tickets LIVE",
-                 "Priority": "urgent", "Tags": "rotating_light",
-                 "Click": EVENT_URLS[0]})
+        headers={"Title": title, "Priority": "urgent",
+                 "Tags": "rotating_light", "Click": EVENT_URLS[0]})
     urllib.request.urlopen(req, timeout=30)
 
 if __name__ == "__main__":
-    state = json.load(open(STATE)) if os.path.exists(STATE) else {"alerts": 0}
+    state = {"alerts": 0, "last_day": ""}
+    if os.path.exists(STATE):
+        state.update(json.load(open(STATE)))
+    old = dict(state)
+
     hits = check()
     print(hits or "not live yet")
-    if hits and state["alerts"] < 5:           # nag up to 5 times, then stop
-        notify("\n".join(hits) + "\nOpen now → Men Open, solo.")
+    if hits and state["alerts"] < 5:  # nag up to 5 times, then stop
+        notify("HYROX Paris Grand Palais tickets LIVE",
+               "\n".join(hits) + "\nOpen now -> Men Open, solo.")
         state["alerts"] += 1
+
+    # Keepalive: one commit per day so GitHub doesn't disable the schedule after 60 days
+    state["last_day"] = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
+    if state != old:
         json.dump(state, open(STATE, "w"))
     if "--test" in sys.argv:
-        notify("Test alert — watcher is wired up.")
+        notify("HYROX watcher test", "Test alert - watcher is wired up.")
